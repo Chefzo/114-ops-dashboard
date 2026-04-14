@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>One Fourteen Bar — Ops Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0a0a08;
+      --surface: #141412;
+      --surface2: #1c1c1a;
+      --border: rgba(255,255,255,0.07);
+      --gold: #B8860B;
+      --gold-light: #D4A017;
+      --text: #E8E6DF;
+      --muted: #888;
+      --dim: #555;
+      --green: #1D9E75;
+      --red: #C0392B;
+      --yellow: #D4A017;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; font-size: 14px; min-height: 100vh; }
+
+    /* Header */
+    .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
+    .header-title { font-size: 11px; font-weight: 700; letter-spacing: 0.18em; color: var(--gold); text-transform: uppercase; }
+    .header-sub { font-size: 11px; color: var(--dim); }
+    .last-updated { font-size: 10px; color: var(--dim); font-style: italic; }
+
+    /* Layout */
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .span-2 { grid-column: span 2; }
+    .span-3 { grid-column: span 3; }
+
+    /* Cards */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 20px; }
+    .card-label { font-size: 10px; font-weight: 700; letter-spacing: 0.14em; color: var(--dim); text-transform: uppercase; margin-bottom: 12px; }
+    .card-value { font-size: 28px; font-weight: 700; color: var(--text); line-height: 1; }
+    .card-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+    /* Status badges */
+    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 3px; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+    .badge-green { background: rgba(29,158,117,0.15); color: var(--green); border: 1px solid rgba(29,158,117,0.3); }
+    .badge-yellow { background: rgba(212,160,23,0.15); color: var(--yellow); border: 1px solid rgba(212,160,23,0.3); }
+    .badge-red { background: rgba(192,57,43,0.15); color: var(--red); border: 1px solid rgba(192,57,43,0.3); }
+
+    /* Section headers */
+    .section-title { font-size: 10px; font-weight: 700; letter-spacing: 0.16em; color: var(--gold); text-transform: uppercase; margin: 28px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+
+    /* Target bars */
+    .target-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+    .target-label { font-size: 12px; color: var(--text); width: 80px; flex-shrink: 0; }
+    .target-bar-wrap { flex: 1; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; position: relative; }
+    .target-bar { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+    .target-pct { font-size: 12px; font-weight: 600; width: 48px; text-align: right; flex-shrink: 0; }
+    .target-limit { font-size: 10px; color: var(--dim); width: 50px; flex-shrink: 0; }
+
+    /* Table */
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table th { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: var(--dim); text-transform: uppercase; padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+    .data-table td { padding: 9px 10px; border-bottom: 1px solid rgba(255,255,255,0.03); font-size: 12px; color: var(--text); }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    /* Events */
+    .event-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .event-row:last-child { border-bottom: none; }
+    .event-days { font-size: 10px; font-weight: 700; color: var(--gold); background: rgba(184,134,11,0.12); border: 1px solid rgba(184,134,11,0.25); border-radius: 3px; padding: 3px 7px; white-space: nowrap; min-width: 52px; text-align: center; }
+    .event-name { font-size: 13px; font-weight: 600; color: var(--text); }
+    .event-date { font-size: 11px; color: var(--muted); }
+
+    /* Loading */
+    .loading { color: var(--dim); font-size: 12px; padding: 20px 0; }
+
+    /* Chart container */
+    .chart-wrap { position: relative; height: 200px; }
+
+    /* Flags */
+    .flag-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .flag-row:last-child { border-bottom: none; }
+    .flag-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+
+    @media (max-width: 900px) {
+      .grid-4, .grid-3 { grid-template-columns: 1fr 1fr; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .span-2, .span-3 { grid-column: span 1; }
+    }
+    @media (max-width: 600px) {
+      .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+      .container { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-title">One Fourteen Bar — Operations Dashboard</div>
+    <div class="header-sub">114 W Main St · Louisville, KY · Whiskey Row</div>
+  </div>
+  <div class="last-updated" id="lastUpdated">Loading...</div>
+</div>
+
+<div class="container">
+
+  <!-- KPI Row -->
+  <div class="section-title">This Week</div>
+  <div class="grid-4" id="kpiRow">
+    <div class="card"><div class="card-label">Total Sales</div><div class="card-value" id="kpiTotal">—</div><div class="card-sub" id="kpiTotalSub">loading...</div></div>
+    <div class="card"><div class="card-label">Spirit Sales</div><div class="card-value" id="kpiSpirits">—</div><div class="card-sub" id="kpiSpiritsSub">loading...</div></div>
+    <div class="card"><div class="card-label">Beer Sales</div><div class="card-value" id="kpiBeer">—</div><div class="card-sub" id="kpiBeerSub">loading...</div></div>
+    <div class="card"><div class="card-label">Inventory Value</div><div class="card-value" id="kpiInv">—</div><div class="card-sub" id="kpiInvSub">loading...</div></div>
+  </div>
+
+  <!-- BWL Targets + Chart -->
+  <div class="section-title">BWL % Targets</div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-label">Pour Cost vs Target</div>
+      <div class="loading" id="targetLoading">Loading...</div>
+      <div id="targetBars" style="display:none">
+        <div class="target-row">
+          <div class="target-label">Liquor</div>
+          <div class="target-bar-wrap"><div class="target-bar" id="barSpirit"></div></div>
+          <div class="target-pct" id="pctSpirit">—</div>
+          <div class="target-limit">target &lt;22%</div>
+          <div id="badgeSpirit"></div>
+        </div>
+        <div class="target-row">
+          <div class="target-label">Beer</div>
+          <div class="target-bar-wrap"><div class="target-bar" id="barBeer"></div></div>
+          <div class="target-pct" id="pctBeer">—</div>
+          <div class="target-limit">target &lt;25%</div>
+          <div id="badgeBeer"></div>
+        </div>
+        <div class="target-row">
+          <div class="target-label">Wine</div>
+          <div class="target-bar-wrap"><div class="target-bar" id="barWine"></div></div>
+          <div class="target-pct" id="pctWine">—</div>
+          <div class="target-limit">target &lt;33%</div>
+          <div id="badgeWine"></div>
+        </div>
+        <div class="target-row" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+          <div class="target-label" style="font-weight:700">Blended</div>
+          <div class="target-bar-wrap"><div class="target-bar" id="barBlended"></div></div>
+          <div class="target-pct" id="pctBlended">—</div>
+          <div class="target-limit">target &lt;25%</div>
+          <div id="badgeBlended"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Weekly Sales Mix</div>
+      <div class="chart-wrap"><canvas id="salesMixChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Weekly trend table + chart -->
+  <div class="section-title">Weekly Trend</div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-label">BWL Sales by Week</div>
+      <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Sales Breakdown</div>
+      <div style="overflow-x:auto">
+        <table class="data-table" id="salesTable">
+          <thead><tr><th>Week</th><th class="num">Spirits</th><th class="num">Beer</th><th class="num">Wine</th><th class="num">Total</th><th class="num">Spirit %</th></tr></thead>
+          <tbody id="salesTableBody"><tr><td colspan="6" class="loading">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Inventory + Events -->
+  <div class="section-title">Inventory & Operations</div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-label">Inventory Status</div>
+      <div id="invStatus" class="loading">Loading...</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Upcoming Events</div>
+      <div id="events" class="loading">Loading...</div>
+    </div>
+  </div>
+
+  <!-- Action Items -->
+  <div class="section-title">Open Action Items</div>
+  <div class="card">
+    <div id="actionItems" class="loading">Loading...</div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+const AIRTABLE_TOKEN = window.AIRTABLE_TOKEN || '';
+const BASE_ID = 'appqZbCNF45ksXnLt';
+
+async function airtable(table, params = '') {
+  const res = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${table}${params}`, {
+    headers: { 'Authorization': `Bearer ${AIRTABLE_TOKEN}` }
+  });
+  return res.json();
+}
+
+function fmt(n) { return '$' + Number(n||0).toLocaleString('en-US', {minimumFractionDigits:0,maximumFractionDigits:0}); }
+function pct(n) { return Number(n||0).toFixed(1) + '%'; }
+
+function badge(val, target) {
+  const diff = val - target;
+  if (diff <= 0) return '<span class="badge badge-green">✓ On Target</span>';
+  if (diff <= 3) return '<span class="badge badge-yellow">⚠ Watch</span>';
+  return '<span class="badge badge-red">✗ Over</span>';
+}
+
+function barColor(val, target) {
+  const diff = val - target;
+  if (diff <= 0) return '#1D9E75';
+  if (diff <= 3) return '#D4A017';
+  return '#C0392B';
+}
+
+let salesMixChart, trendChart;
+
+async function loadBWLSales() {
+  const data = await airtable('tblEteCJ7VJ0SakEF', '?sort[0][field]=Week%20Date&sort[0][direction]=asc');
+  const records = data.records || [];
+  if (!records.length) return;
+
+  const latest = records[records.length - 1].fields;
+  const spiritPct = latest['Spirit Pct'] || 0;
+  const beerPct = latest['Beer Pct'] || 0;
+  const winePct = latest['Wine Pct'] || 0;
+  const blendedPct = ((spiritPct + beerPct + winePct) / 3);
+
+  // KPIs
+  document.getElementById('kpiTotal').textContent = fmt(latest['Total Sales']);
+  document.getElementById('kpiTotalSub').textContent = latest['Week'] || '';
+  document.getElementById('kpiSpirits').textContent = fmt(latest['Spirit Sales']);
+  document.getElementById('kpiSpiritsSub').textContent = pct(spiritPct) + ' of sales';
+  document.getElementById('kpiBeer').textContent = fmt(latest['Beer Sales']);
+  document.getElementById('kpiBeerSub').textContent = pct(beerPct) + ' of sales';
+
+  // Target bars
+  document.getElementById('targetLoading').style.display = 'none';
+  document.getElementById('targetBars').style.display = 'block';
+
+  const setBar = (id, pctVal, target) => {
+    const el = document.getElementById('bar' + id);
+    el.style.width = Math.min(pctVal, 50) * 2 + '%';
+    el.style.background = barColor(pctVal, target);
+    document.getElementById('pct' + id).textContent = pct(pctVal);
+    document.getElementById('pct' + id).style.color = barColor(pctVal, target);
+    document.getElementById('badge' + id).innerHTML = badge(pctVal, target);
+  };
+  setBar('Spirit', spiritPct, 22);
+  setBar('Beer', beerPct, 25);
+  setBar('Wine', winePct, 33);
+  setBar('Blended', blendedPct, 25);
+
+  // Sales mix donut
+  const ctx = document.getElementById('salesMixChart').getContext('2d');
+  if (salesMixChart) salesMixChart.destroy();
+  salesMixChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Spirits', 'Beer', 'Wine'],
+      datasets: [{ data: [latest['Spirit Sales']||0, latest['Beer Sales']||0, latest['Wine Sales']||0],
+        backgroundColor: ['#B8860B', '#1D9E75', '#4A90D9'], borderWidth: 0, hoverOffset: 4 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: {
+      legend: { position: 'bottom', labels: { color: '#888', font: { size: 11 }, padding: 12 } }
+    }}
+  });
+
+  // Trend chart + table
+  const weeks = records.slice(-8);
+  const tCtx = document.getElementById('trendChart').getContext('2d');
+  if (trendChart) trendChart.destroy();
+  trendChart = new Chart(tCtx, {
+    type: 'bar',
+    data: {
+      labels: weeks.map(r => (r.fields['Week']||'').split('–')[0].trim()),
+      datasets: [
+        { label: 'Spirits', data: weeks.map(r => r.fields['Spirit Sales']||0), backgroundColor: '#B8860B' },
+        { label: 'Beer', data: weeks.map(r => r.fields['Beer Sales']||0), backgroundColor: '#1D9E75' },
+        { label: 'Wine', data: weeks.map(r => r.fields['Wine Sales']||0), backgroundColor: '#4A90D9' }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, scales: {
+      x: { stacked: true, ticks: { color: '#555', font:{size:10} }, grid: { color: 'rgba(255,255,255,0.04)' } },
+      y: { stacked: true, ticks: { color: '#555', callback: v => '$'+v.toLocaleString() }, grid: { color: 'rgba(255,255,255,0.06)' } }
+    }, plugins: { legend: { labels: { color: '#888', font:{size:11} } } }}
+  });
+
+  // Table
+  const tbody = document.getElementById('salesTableBody');
+  tbody.innerHTML = records.slice(-8).reverse().map(r => {
+    const f = r.fields;
+    const sp = f['Spirit Pct'] || 0;
+    const color = sp > 25 ? 'var(--red)' : sp > 22 ? 'var(--yellow)' : 'var(--green)';
+    return `<tr>
+      <td>${f['Week']||'—'}</td>
+      <td class="num">${fmt(f['Spirit Sales'])}</td>
+      <td class="num">${fmt(f['Beer Sales'])}</td>
+      <td class="num">${fmt(f['Wine Sales'])}</td>
+      <td class="num" style="font-weight:600">${fmt(f['Total Sales'])}</td>
+      <td class="num" style="color:${color};font-weight:600">${pct(sp)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('lastUpdated').textContent = 'Updated ' + new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+}
+
+async function loadInventory() {
+  const data = await airtable('tblYsgE0RBjY2QNnr', '?sort[0][field]=Count%20Date&sort[0][direction]=desc&maxRecords=1');
+  const records = data.records || [];
+  const el = document.getElementById('invStatus');
+
+  if (!records.length) { el.textContent = 'No inventory data yet.'; return; }
+
+  const f = records[0].fields;
+  const status = f['Inv Status'] || 'Unknown';
+  const badgeClass = status === 'On target' ? 'badge-green' : status === 'Watch' ? 'badge-yellow' : 'badge-red';
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <span class="badge ${badgeClass}">${status}</span>
+      <span style="font-size:11px;color:var(--muted)">${f['Week']||''}</span>
+    </div>
+    <div class="grid-2" style="gap:12px">
+      ${[['Spirits', f['Spirits']], ['Beer', f['Beer']], ['Wine', f['Wine']], ['Total', f['Total']]].map(([label, val]) =>
+        `<div style="background:var(--surface2);padding:12px;border-radius:4px;border:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">${label}</div>
+          <div style="font-size:20px;font-weight:700">${fmt(val)}</div>
+        </div>`
+      ).join('')}
+    </div>
+  `;
+  document.getElementById('kpiInv').textContent = fmt(f['Total']);
+  document.getElementById('kpiInvSub').textContent = 'as of ' + (f['Week']||'last count');
+}
+
+async function loadActionItems() {
+  const data = await airtable('tbl6GkTkZ3y1gq2Iq', '?filterByFormula=NOT({Status}%3D"Done")&sort[0][field]=Priority');
+  const records = data.records || [];
+  const el = document.getElementById('actionItems');
+
+  if (!records.length) { el.innerHTML = '<span style="color:var(--green)">✓ No open action items</span>'; return; }
+
+  const priorityColor = { 'High': 'var(--red)', 'Medium': 'var(--yellow)', 'Low': 'var(--dim)' };
+
+  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">` +
+    records.map(r => {
+      const f = r.fields;
+      const color = priorityColor[f['Priority']] || 'var(--dim)';
+      return `<div style="background:var(--surface2);padding:12px;border-radius:4px;border:1px solid var(--border);border-left:3px solid ${color}">
+        <div style="font-size:12px;font-weight:600;margin-bottom:4px">${f['Action']||'—'}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${f['Priority'] ? `<span class="badge" style="background:${color}22;color:${color};border-color:${color}44">${f['Priority']}</span>` : ''}
+          ${f['Category'] ? `<span style="font-size:10px;color:var(--dim)">${f['Category']}</span>` : ''}
+        </div>
+        ${f['Notes'] ? `<div style="font-size:11px;color:var(--muted);margin-top:6px">${f['Notes']}</div>` : ''}
+      </div>`;
+    }).join('') + '</div>';
+}
+
+// Events from hardcoded data (will auto-update from workspace files)
+function loadEvents() {
+  const events = [
+    { name: 'Riley Green — Yum Center', date: 'Apr 17, 2026' },
+    { name: 'FUN-DER Plaza Party', date: 'Apr 18, 2026' },
+    { name: 'Derby Eve — Smokeasy × One Fourteen', date: 'Apr 30, 2026' },
+    { name: 'Side Chick Vol. 1 Launch', date: 'May 10, 2026' },
+    { name: 'Talk Thirty to Me', date: 'May 30, 2026' },
+    { name: 'Shifty — Week 1', date: 'Jun 2, 2026' },
+  ];
+
+  const now = new Date();
+  const el = document.getElementById('events');
+  el.innerHTML = events.map(e => {
+    const d = new Date(e.date);
+    const days = Math.ceil((d - now) / (1000*60*60*24));
+    if (days < 0) return '';
+    const urgency = days <= 3 ? 'var(--red)' : days <= 7 ? 'var(--yellow)' : 'var(--gold)';
+    return `<div class="event-row">
+      <div class="event-days" style="color:${urgency};border-color:${urgency}44;background:${urgency}18">${days}d</div>
+      <div>
+        <div class="event-name">${e.name}</div>
+        <div class="event-date">${e.date}</div>
+      </div>
+    </div>`;
+  }).filter(Boolean).join('') || '<div style="color:var(--dim);font-size:12px">No upcoming events</div>';
+}
+
+// Init
+async function init() {
+  loadEvents();
+  await Promise.all([loadBWLSales(), loadInventory(), loadActionItems()]);
+}
+
+init().catch(console.error);
+</script>
+</body>
+</html>
