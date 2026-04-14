@@ -168,7 +168,7 @@
   <div class="section-title">BWL Pour Cost & Top Movers</div>
   <div class="grid-3">
     <div class="card">
-      <div class="card-label">Pour Cost vs Target</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px"><div class="card-label" style="margin-bottom:0">Pour Cost vs Target</div><div id="bwlPeriod" style="font-size:10px;color:var(--dim)">loading...</div></div>
       <div class="loading" id="targetLoading">Loading...</div>
       <div id="targetBars" style="display:none">
         <div class="target-row">
@@ -203,7 +203,7 @@
     </div>
 
     <div class="card">
-      <div class="card-label">Weekly Sales Mix</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px"><div class="card-label" style="margin-bottom:0">Weekly Sales Mix</div><div id="mixPeriod" style="font-size:10px;color:var(--dim)">loading...</div></div>
       <div class="chart-wrap"><canvas id="salesMixChart"></canvas></div>
     </div>
 
@@ -217,11 +217,11 @@
   <div class="section-title">Weekly Trend</div>
   <div class="grid-2">
     <div class="card">
-      <div class="card-label">BWL Sales by Week</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px"><div class="card-label" style="margin-bottom:0">BWL Sales by Week</div><div style="font-size:10px;color:var(--dim)">spirits · beer · wine · stacked</div></div>
       <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
     </div>
     <div class="card">
-      <div class="card-label">Sales Breakdown</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px"><div class="card-label" style="margin-bottom:0">Sales Breakdown</div><div style="font-size:10px;color:var(--dim)">last 8 weeks</div></div>
       <div style="overflow-x:auto">
         <table class="data-table">
           <thead><tr><th>Week</th><th class="num">Spirits</th><th class="num">Beer</th><th class="num">Wine</th><th class="num">Total</th><th class="num">Spirit %</th></tr></thead>
@@ -310,7 +310,7 @@ async function loadBWLSales() {
 
   // KPIs
   document.getElementById('kpiTotal').textContent = fmt(latest['Total Sales']);
-  document.getElementById('kpiTotalSub').textContent = latest['Week'] || '';
+  document.getElementById('kpiTotalSub').textContent = (latest['Week'] || '') + ' · week ending';
   document.getElementById('kpiSpirits').textContent = fmt(latest['Spirit Sales']);
   document.getElementById('kpiSpiritsSub').textContent = pct(spiritPct) + ' of sales';
   document.getElementById('kpiBeer').textContent = fmt(latest['Beer Sales']);
@@ -334,6 +334,11 @@ async function loadBWLSales() {
   setBar('Beer', beerPct, 25);
   setBar('Wine', winePct, 33);
   setBar('Blended', blendedPct, 25);
+  const period = latest['Week'] || '';
+  const periodEl = document.getElementById('bwlPeriod');
+  if (periodEl) periodEl.textContent = period;
+  const mixPeriodEl = document.getElementById('mixPeriod');
+  if (mixPeriodEl) mixPeriodEl.textContent = period;
 
   // Donut
   const ctx = document.getElementById('salesMixChart').getContext('2d');
