@@ -248,6 +248,19 @@
     </div>
   </div>
 
+  <!-- Pour Cost -->
+  <div class="section-title">Pour Cost Tracker <span style="font-size:9px;color:var(--dim);font-weight:400;letter-spacing:0;text-transform:none">— purchases ÷ revenue · true COGS requires weekly inventory counts</span></div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-label">Monthly Pour Cost %</div>
+      <div id="pourCostTable" class="loading">Loading...</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Blended % Trend</div>
+      <div class="chart-wrap-sm"><canvas id="pourCostChart"></canvas></div>
+    </div>
+  </div>
+
   <!-- Action Items -->
   <div class="section-title">Open Action Items</div>
   <div class="card">
@@ -557,12 +570,63 @@ async function loadActionItems() {
     }).join('') + '</div>';
 }
 
+
+let pourCostChart;
+async function loadPourCost() {
+  const data = await airtable('tbl5XaSEWTLrukYQQ', '?sort[0][field]=Period%20Date&sort[0][direction]=asc');
+  const records = data.records || [];
+  const el = document.getElementById('pourCostTable');
+  if (!records.length) { el.textContent = 'No data yet.'; return; }
+
+  const statusColor = s => s === 'On Target' ? 'var(--green)' : s === 'Watch' ? 'var(--yellow)' : 'var(--red)';
+
+  el.innerHTML = '<div style="overflow-x:auto"><table class="data-table">' +
+    '<thead><tr><th>Period</th><th class="num">Spirits</th><th class="num">Beer</th><th class="num">Wine</th><th class="num">Blended</th><th>Status</th></tr></thead>' +
+    '<tbody>' + records.reverse().map(r => {
+      const f = r.fields;
+      const c = statusColor(f.Status);
+      return '<tr>' +
+        '<td style="font-weight:600">' + (f.Period||'—') + '</td>' +
+        '<td class="num">' + (f['Spirit Pct']||0).toFixed(1) + '%</td>' +
+        '<td class="num">' + (f['Beer Pct']||0).toFixed(1) + '%</td>' +
+        '<td class="num">' + (f['Wine Pct']||0).toFixed(1) + '%</td>' +
+        '<td class="num" style="font-weight:700;color:' + c + '">' + (f['Blended Pct']||0).toFixed(1) + '%</td>' +
+        '<td><span class="badge" style="background:' + c + '22;color:' + c + ';border-color:' + c + '44">' + (f.Status||'—') + '</span></td>' +
+        '</tr>';
+    }).join('') +
+    '<tr style="border-top:1px solid var(--border)"><td colspan="4" style="font-size:10px;color:var(--dim)">Target: Spirits &lt;22% · Beer &lt;25% · Wine &lt;33% · Blended &lt;25%</td></tr>' +
+    '</tbody></table></div>';
+
+  // Chart
+  const chartRecords = [...records].reverse();
+  const pCtx = document.getElementById('pourCostChart').getContext('2d');
+  if (pourCostChart) pourCostChart.destroy();
+  pourCostChart = new Chart(pCtx, {
+    type: 'bar',
+    data: {
+      labels: chartRecords.map(r => r.fields.Period||''),
+      datasets: [
+        { label: 'Spirits', data: chartRecords.map(r => r.fields['Spirit Pct']||0), backgroundColor: '#B8860B' },
+        { label: 'Beer', data: chartRecords.map(r => r.fields['Beer Pct']||0), backgroundColor: '#1D9E75' },
+        { label: 'Wine', data: chartRecords.map(r => r.fields['Wine Pct']||0), backgroundColor: '#4A90D9' },
+        { label: 'Target', data: chartRecords.map(() => 25), type: 'line', borderColor: '#C0392B', borderDash: [4,4], borderWidth: 1.5, pointRadius: 0, fill: false, tension: 0 }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { stacked: true, ticks: { color: '#555', font:{size:10} }, grid: { display: false } },
+        y: { stacked: false, max: 35, ticks: { color: '#555', callback: v => v + '%' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+      },
+      plugins: { legend: { labels: { color: '#888', font:{size:10} } } }
+    }
+  });
+}
 async function init() {
   initCountdowns();
   loadEvents();
   loadShifty();
   loadTopMovers();
-  await Promise.all([loadBWLSales(), loadInventory(), loadActionItems()]);
+  await Promise.all([loadBWLSales(), loadInventory(), loadActionItems(), loadPourCost()]);
 }
 
 init().catch(console.error);
