@@ -150,11 +150,16 @@
 
   <!-- KPI Row -->
   <div class="section-title">This Week at a Glance</div>
-  <div class="grid-5">
+  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:16px">
     <div class="card" id="cardTotal"><div class="card-label">Total Sales</div><div class="card-value" id="kpiTotal">—</div><div class="card-sub" id="kpiTotalSub">loading...</div></div>
     <div class="card" id="cardSpirits"><div class="card-label">Spirit Sales</div><div class="card-value" id="kpiSpirits">—</div><div class="card-sub" id="kpiSpiritsSub">—</div></div>
     <div class="card" id="cardBeer"><div class="card-label">Beer Sales</div><div class="card-value" id="kpiBeer">—</div><div class="card-sub" id="kpiBeerSub">—</div></div>
     <div class="card" id="cardCash"><div class="card-label">Last Night Cash %</div><div class="card-value" id="kpiCash">—</div><div class="card-sub" id="kpiCashSub">—</div></div>
+    <div class="card" id="cardCOGS" style="border:1px solid rgba(184,134,11,0.2)">
+      <div class="card-label">COGS %</div>
+      <div class="card-value" id="kpiCOGS" style="font-size:36px">—</div>
+      <div class="card-sub" id="kpiCOGSSub">loading...</div>
+    </div>
     <div class="card" id="cardInv"><div class="card-label">Inventory Value</div><div class="card-value" id="kpiInv">—</div><div class="card-sub" id="kpiInvSub">loading...</div></div>
   </div>
 
@@ -577,6 +582,30 @@ async function loadPourCost() {
   const records = data.records || [];
   const el = document.getElementById('pourCostTable');
   if (!records.length) { el.textContent = 'No data yet.'; return; }
+
+  // Update COGS KPI card with most recent period
+  const latest = records[records.length - 1].fields;
+  const cogsEl = document.getElementById('kpiCOGS');
+  const cogsSub = document.getElementById('kpiCOGSSub');
+  const cogsCard = document.getElementById('cardCOGS');
+  if (latest['Blended Pct']) {
+    const pct = latest['Blended Pct'];
+    cogsEl.textContent = pct.toFixed(1) + '%';
+    cogsSub.textContent = latest['Period'] || '';
+    if (pct <= 25) {
+      cogsEl.style.color = 'var(--green)';
+      cogsCard.style.borderColor = 'rgba(29,158,117,0.3)';
+    } else if (pct <= 28) {
+      cogsEl.style.color = 'var(--yellow)';
+      cogsCard.style.borderColor = 'rgba(212,160,23,0.3)';
+    } else {
+      cogsEl.style.color = 'var(--red)';
+      cogsCard.style.borderColor = 'rgba(192,57,43,0.3)';
+    }
+  } else {
+    cogsEl.textContent = '—';
+    cogsSub.textContent = 'Awaiting weekly count';
+  }
 
   const statusColor = s => s === 'On Target' ? 'var(--green)' : s === 'Watch' ? 'var(--yellow)' : 'var(--red)';
 
